@@ -24,17 +24,8 @@ class ResPartner(models.Model):
     def create(self, vals):
         if not vals.get('company_ids'):
             try:
-                if self.env.context.get('create_company') and vals.get('is_company') and vals.get('name'):
-                    company = self.env['res.company'].search(
-                        [('name', '=', vals['name']), ('active', '=', True)],
-                        order='create_date desc',
-                        limit=1
-                    )
-                    if company:
-                        vals['company_ids'] = [(6, 0, [company.id])]
-                        _logger.info("Asignado company_ids al partner '%s' desde la compañía '%s'", vals['name'], company.name)
-                    else:
-                        _logger.warning("No se encontró compañía coincidente para el partner '%s'", vals['name'])
+                if vals.get('is_company'):
+                    _logger.info("Creando partner de tipo compañía '%s' sin company_ids (esperando que se asocie desde res.company)", vals.get('name'))
                 else:
                     user = self.env.user if self.env.user and self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
                     user_company = user.company_id
@@ -45,14 +36,18 @@ class ResPartner(models.Model):
         return super().create(vals)
 
     def write(self, vals):
+        if self.env.context.get('skip_company_check'):
+            return super().write(vals)
         res = super().write(vals)
         for record in self:
             if not record.company_ids:
                 try:
                     user_company = self.env.user.company_id
                     if user_company:
-                        record.company_ids = [(6, 0, [user_company.id])]
-                        _logger.info("company_ids restaurado automáticamente en write para %s", record.name)
+                        _logger.info("Restaurando company_ids para %s con la compañía del usuario %s", record.name, user_company.name)
+                        record.with_context(skip_company_check=True).sudo().write({
+                            'company_ids': [(6, 0, [user_company.id])]
+                        })
                 except Exception as e:
                     _logger.warning("Error al restaurar company_ids en write: %s", e)
         return res
@@ -60,7 +55,8 @@ class ResPartner(models.Model):
     @api.constrains('company_ids')
     def _check_company_ids(self):
         for record in self:
-            if not record.company_ids:
-                raise ValidationError("No se puede dejar el campo 'company_ids' vacío.")
+            if not record.company_ids and not record.is_company:
+                raise ValidationError("No se puede dejar el campo 'company_ids' vacío en un partner que no representa una compañía.")
+
 
 
