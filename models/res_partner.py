@@ -24,12 +24,24 @@ class ResPartner(models.Model):
     def create(self, vals):
         if not vals.get('company_ids'):
             try:
-                user = self.env.user if self.env.user and self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
-                user_company = user.company_id
-                if user_company:
-                    vals['company_ids'] = [(6, 0, [user_company.id])]
+                if self.env.context.get('create_company') and vals.get('is_company') and vals.get('name'):
+                    company = self.env['res.company'].search(
+                        [('name', '=', vals['name']), ('active', '=', True)],
+                        order='create_date desc',
+                        limit=1
+                    )
+                    if company:
+                        vals['company_ids'] = [(6, 0, [company.id])]
+                        _logger.info("Asignado company_ids al partner '%s' desde la compañía '%s'", vals['name'], company.name)
+                    else:
+                        _logger.warning("No se encontró compañía coincidente para el partner '%s'", vals['name'])
+                else:
+                    user = self.env.user if self.env.user and self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
+                    user_company = user.company_id
+                    if user_company:
+                        vals['company_ids'] = [(6, 0, [user_company.id])]
             except Exception as e:
-                _logger.warning("Failed to set default company in create: %s", e)
+                _logger.warning("Error al asignar company_ids en create: %s", e)
         return super().create(vals)
 
     def write(self, vals):
@@ -50,3 +62,5 @@ class ResPartner(models.Model):
         for record in self:
             if not record.company_ids:
                 raise ValidationError("No se puede dejar el campo 'company_ids' vacío.")
+
+
