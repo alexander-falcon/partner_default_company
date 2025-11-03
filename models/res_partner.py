@@ -13,9 +13,17 @@ class ResPartner(models.Model):
         res = super().default_get(fields_list)
         if 'company_ids' in fields_list and not res.get('company_ids'):
             try:
-                user_company = self.env.user.company_id
-                if user_company:
-                    res['company_ids'] = [(6, 0, [user_company.id])]
+                user = self.env.user
+                if user.has_group('base.group_system'):
+                    active_company = self.env.company
+                    if active_company:
+                        res['company_ids'] = [(6, 0, [active_company.id])]
+                        _logger.info("Asignando company_ids desde env.company para administrador: %s", active_company.name)
+                else:
+                    user_company = user.company_id
+                    if user_company:
+                        res['company_ids'] = [(6, 0, [user_company.id])]
+                        _logger.info("Asignando company_ids desde user.company_id para usuario: %s", user_company.name)
             except Exception as e:
                 _logger.warning("Failed to set default company in default_get: %s", e)
         return res
