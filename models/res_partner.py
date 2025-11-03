@@ -34,10 +34,9 @@ class ResPartner(models.Model):
 
         return res
     
-    @api.model
     def create(self, vals):
         vals = dict(vals)
-        if not vals.get('company_ids') and not vals.get('is_company'):
+        if not vals.get('company_ids'):
             try:
                 user = self.env.user if self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
                 company_id = user.company_id.id if not user.has_group('base.group_system') else self.env.company.id
@@ -47,6 +46,7 @@ class ResPartner(models.Model):
             except Exception as e:
                 _logger.warning("Error al asignar company_ids en create: %s", e)
         return super().create(vals)
+
 
 
     def write(self, vals):
