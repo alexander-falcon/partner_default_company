@@ -9,36 +9,34 @@ _logger = logging.getLogger(__name__)
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
-    @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
-        if 'company_ids' in fields_list and not res.get('company_ids'):
-            try:
-                user = self.env.user
-                if user.has_group('base.group_system'):
-                    active_company = self.env.company
-                    if active_company:
-                        res['company_ids'] = [(6, 0, [active_company.id])]
-                        _logger.info("Asignando company_ids desde la compañía activa (env.company) para administrador: %s", active_company.name)
-                    else:
-                        _logger.warning("No se pudo obtener la compañía activa desde env.company")
-                else:
-                    user_company = user.company_id
-                    if user_company and user_company.id:
-                        res['company_ids'] = [(6, 0, [user_company.id])]
-                        _logger.info("Asignando company_ids desde la compañía del usuario (user.company_id): %s", user_company.name)
-                    else:
-                        _logger.warning("El usuario no tiene una compañía principal asignada")
-            except Exception as e:
-                _logger.warning("Error al asignar company_ids en default_get: %s", e)
+    # @api.model
+    # def default_get(self, fields_list):
+    #     res = super().default_get(fields_list)
+    #     if 'company_ids' in fields_list and not res.get('company_ids'):
+    #         try:
+    #             user = self.env.user
+    #             if user.has_group('base.group_system'):
+    #                 active_company = self.env.company
+    #                 if active_company:
+    #                     res['company_ids'] = [(6, 0, [active_company.id])]
+    #                     _logger.info("Asignando company_ids desde la compañía activa (env.company) para administrador: %s", active_company.name)
+    #                 else:
+    #                     _logger.warning("No se pudo obtener la compañía activa desde env.company")
+    #             else:
+    #                 user_company = user.company_id
+    #                 if user_company and user_company.id:
+    #                     res['company_ids'] = [(6, 0, [user_company.id])]
+    #                     _logger.info("Asignando company_ids desde la compañía del usuario (user.company_id): %s", user_company.name)
+    #                 else:
+    #                     _logger.warning("El usuario no tiene una compañía principal asignada")
+    #         except Exception as e:
+    #             _logger.warning("Error al asignar company_ids en default_get: %s", e)
 
-        return res
+    #     return res
     
     @api.model
     def create(self, vals):
-        # Soporta tanto un solo dict como una lista de dicts
         vals_list = vals if isinstance(vals, list) else [vals]
-
         for vals_item in vals_list:
             if not vals_item.get('company_ids'):
                 try:
@@ -49,34 +47,6 @@ class ResPartner(models.Model):
                         _logger.info("Asignando company_ids en create para '%s': %s", vals_item.get('name'), company_id)
                 except Exception as e:
                     _logger.warning("Error al asignar company_ids en create: %s", e)
-
         return super().create(vals_list if isinstance(vals, list) else vals_list[0])
 
-    def write(self, vals):
-        if self.env.context.get('skip_company_check'):
-            return super().write(vals)
-        res = super().write(vals)
-        for record in self:
-            if not record.company_ids and not record.is_company:
-                try:
-                    user = self.env.user if self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
-                    user_company = user.company_id
-
-                    if user_company and user_company.id:
-                        record.with_context(skip_company_check=True).sudo().write({
-                            'company_ids': [(6, 0, [user_company.id])]
-                        })
-                        _logger.info("Restaurando company_ids para '%s' con la compañía del usuario: %s", record.name, user_company.name)
-                    else:
-                        _logger.warning("No se pudo obtener una compañía válida desde el usuario para restaurar company_ids en '%s'", record.name)
-                except Exception as e:
-                    _logger.warning("Error al restaurar company_ids en write: %s", e)
-        return res
-
-    @api.constrains('company_ids')
-    def _check_company_ids(self):
-        if self.env.context.get('skip_company_check'):
-            return
-        for record in self:
-            if not record.company_ids and not record.is_company:
-                raise ValidationError("No se puede dejar el campo 'company_ids' vacío en un partner que no representa una compañía.")
+    
