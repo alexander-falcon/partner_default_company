@@ -47,18 +47,22 @@ class ResPartner(models.Model):
                         order='create_date desc',
                         limit=1
                     )
+                    user_company = self.env.user.company_ids
+                    company_ids = []
                     if company:
-                        _logger.info("Restaurando company_ids para '%s' con la compañía '%s' (por coincidencia de nombre)", record.name, company.name)
+                        company_ids.append(company.id)
+                    if user_company and user_company.id not in company_ids:
+                        company_ids.append(user_company.id)
+                    if company_ids:
+                        _logger.info("Restaurando company_ids para '%s' con compañías: %s", record.name, company_ids)
                         record.with_context(skip_company_check=True).sudo().write({
-                            'company_ids': [(6, 0, [company.id])]
+                            'company_ids': [(6, 0, company_ids)]
                         })
                     else:
-                        _logger.warning("No se encontró compañía activa con el nombre '%s' para restaurar company_ids", record.name)
+                        _logger.warning("No se encontró ninguna compañía válida para restaurar company_ids en '%s'", record.name)
                 except Exception as e:
                     _logger.warning("Error al restaurar company_ids en write: %s", e)
-
         return res
-
 
     @api.constrains('company_ids')
     def _check_company_ids(self):
