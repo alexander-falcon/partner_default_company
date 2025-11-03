@@ -33,31 +33,21 @@ class ResPartner(models.Model):
                 _logger.warning("Error al asignar company_ids en default_get: %s", e)
 
         return res
-
+    
     @api.model
     def create(self, vals):
-        if not vals.get('company_ids'):
+        vals = dict(vals)
+        if not vals.get('company_ids') and not vals.get('is_company'):
             try:
-                if vals.get('is_company'):
-                    _logger.info(
-                        "Creando partner de tipo compañía '%s' sin company_ids (esperando que se asocie desde res.company)",
-                        vals.get('name')
-                    )
-                else:
-                    user = self.env.user if self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
-                    if user.has_group('base.group_system'):
-                        active_company = self.env.company
-                        if active_company:
-                            vals['company_ids'] = [(6, 0, [active_company.id])]
-                            _logger.info("Asignando company_ids desde env.company para administrador: %s", active_company.name)
-                    else:
-                        user_company = user.company_id
-                        if user_company and user_company.id:
-                            vals['company_ids'] = [(6, 0, [user_company.id])]
-                            _logger.info("Asignando company_ids desde user.company_id para usuario: %s", user_company.name)
+                user = self.env.user if self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
+                company_id = user.company_id.id if not user.has_group('base.group_system') else self.env.company.id
+                if company_id:
+                    vals['company_ids'] = [(6, 0, [company_id])]
+                    _logger.info("Asignando company_ids en create para '%s': %s", vals.get('name'), company_id)
             except Exception as e:
                 _logger.warning("Error al asignar company_ids en create: %s", e)
         return super().create(vals)
+
 
     def write(self, vals):
         if self.env.context.get('skip_company_check'):
