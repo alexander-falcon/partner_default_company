@@ -13,18 +13,14 @@ class ResCompany(models.Model):
         company = super().create(vals)
         try:
             partner = company.partner_id
-            user = self.env.user if self.env.user.id != SUPERUSER_ID else self.env['res.users'].browse(SUPERUSER_ID)
-            user_company = user.company_id
-            company_ids = set()
-            if company.id:
-                company_ids.add(company.id)
-            if user_company and user_company.id != company.id:
-                company_ids.add(user_company.id)
-            if partner and not partner.company_ids:
-                partner.with_context(skip_company_check=True).sudo().write({
-                    'company_ids': [(6, 0, list(company_ids))]
-                })
-                _logger.info("Asignando company_ids al partner '%s' desde res.company.create: %s", partner.name, list(company_ids))
+            if partner:
+                existing_ids = partner.company_ids.ids if partner.company_ids else []
+                if company.id not in existing_ids:
+                    updated_ids = list(set(existing_ids + [company.id]))
+                    partner.sudo().write({
+                        'company_ids': [(6, 0, updated_ids)]
+                    })
+                    _logger.info("Extendiendo company_ids del partner '%s' con la nueva compañía: %s", partner.name, company.name)
         except Exception as e:
-            _logger.warning("Error al asignar company_ids al partner desde res.company.create: %s", e)
+            _logger.warning("Error al extender company_ids al partner desde res.company.create: %s", e)
         return company
