@@ -15,8 +15,8 @@
                 "-u", "partner_default_company", 
                 "--dev", "xml", 
                 "--limit-time-cpu=9999", "--limit-time-real=9999",
-                "--test-enable",
-                "--stop-after-init"
+                //"--test-enable",
+                //"--stop-after-init"
             ],
             "console": "integratedTerminal"
         }
