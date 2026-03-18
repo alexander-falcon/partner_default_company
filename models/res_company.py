@@ -19,8 +19,14 @@ class ResCompany(models.Model):
                     partner.sudo().write({
                         'company_ids': [(6, 0, [company.id])]
                     })
-                    _logger.info("Extendiendo company_ids del partner '%s' con la nueva compañía: %s", partner.name, company.name)
+                    _logger.info(
+                        "[company.create] Asignado company_ids del partner '%s' a compañía: %s (ID: %s)",
+                        partner.name, company.name, company.id
+                    )
             except Exception as e:
-                _logger.warning("Error al extender company_ids al partner desde res.company.create: %s", e)
+                _logger.exception(
+                    "[company.create] Error al asignar company_ids al partner de compañía %s: %s",
+                    company.name, e
+                )
 
         return companies
