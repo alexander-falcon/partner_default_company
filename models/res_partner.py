@@ -9,89 +9,71 @@ class ResPartner(models.Model):
     _inherit = 'res.partner'
 
     @api.model
-    def default_get(self, fields_list):
-        """Valores por defecto al crear partner"""
-        res = super().default_get(fields_list)
-
-        if 'company_ids' in fields_list and not res.get('company_ids'):
-            try:
-                user = self.env.user
-                company = (
-                    self.env.company if len(user.company_ids) > 1
-                    else user.company_id
-                )
-                
-                if company:
-                    context_company = self.env.context.get('default_company_ids')
-                    if not context_company:
-                        company_sudo = company.sudo()
-                        res['company_ids'] = [(6, 0, [company_sudo.id])]
-                        _logger.info(
-                            "[default_get] Asignado company_ids='%s' (%s) a partner por defecto (usuario: %s)",
-                            company_sudo.id, company_sudo.name, user.login
-                        )
-                    else:
-                        _logger.info(
-                            "[default_get] Se respeta compañía del contexto: %s",
-                            context_company
-                        )
-                else:
-                    _logger.warning(
-                        "[default_get] No se pudo determinar compañía activa para partner"
-                    )
-            except Exception as e:
-                _logger.exception("[default_get] Error inesperado: %s", e)
-                
-        return res
-    
-    @api.model_create_multi
-    def create(self, vals_list):
+    def _get_company_vals(self, values, check_context=True):
         user = self.env.user
         company = (
             self.env.company if len(user.company_ids) > 1
             else user.company_id
         )
         
+        if not company:
+            return values
+            
+        company_sudo = company.sudo()
+        
+        if 'company_id' not in values:
+            if not (check_context and self.env.context.get('default_company_id')):
+                values['company_id'] = company_sudo.id
+                _logger.info(
+                    "Asignado company_id=%s (%s) por usuario %s",
+                    company_sudo.id, company_sudo.name, user.login
+                )
+        
+        if 'company_ids' not in values:
+            if not (check_context and self.env.context.get('default_company_ids')):
+                values['company_ids'] = [(6, 0, [company_sudo.id])]
+                _logger.info(
+                    "Asignado company_ids=%s (%s) por usuario %s",
+                    company_sudo.id, company_sudo.name, user.login
+                )
+        
+        return values
+    
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        
+        company_fields = [f for f in ['company_id', 'company_ids'] if f in fields_list]
+        if not company_fields:
+            return res
+            
+        try:
+            res = self._get_company_vals(res, check_context=True)
+        except Exception as e:
+            _logger.exception("[default_get] Error inesperado: %s", e)
+            
+        return res
+
+    @api.model_create_multi
+    def create(self, vals_list):
         processed_vals_list = []
+        asignados = 0
         
         for vals in vals_list:
             try:
                 new_vals = vals.copy()
-                partner_name = vals.get('name', 'Sin nombre')
-
-                if 'company_ids' not in vals and company:
-                    company_sudo = company.sudo()
-                    new_vals['company_ids'] = [(6, 0, [company_sudo.id])]
-                    _logger.info(
-                        "[create] Asignado company_ids='%s' (%s) al partner '%s' (origen: %s)",
-                        company_sudo.id, company_sudo.name, partner_name,
-                        self._context.get('params', {}).get('model', 'desconocido')
-                    )
-                elif 'company_ids' in vals:
-                    _logger.info(
-                        "[create] Partner '%s' ya tenía company_ids definido, se respeta: %s",
-                        partner_name, vals['company_ids']
-                    )
-                else:
-                    _logger.warning(
-                        "[create] No hay compañía activa para asignar al partner '%s'",
-                        partner_name
-                    )
-                    
+                new_vals = self._get_company_vals(new_vals, check_context=False)
                 processed_vals_list.append(new_vals)
-                
             except Exception as e:
-                _logger.exception(
-                    "[create] Error procesando partner '%s': %s",
-                    vals.get('name', 'Sin nombre'), e
-                )
+                _logger.exception("[create] Error procesando vals: %s", e)
                 processed_vals_list.append(vals)
 
         partners = super(ResPartner, self.sudo()).create(processed_vals_list)
 
         _logger.info(
             "[create] Creados %d partners para usuario %s",
-            len(partners), user.login
+            len(partners), self.env.user.login
         )
         
         return partners
+    

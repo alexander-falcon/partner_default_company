@@ -15,18 +15,39 @@ class ResCompany(models.Model):
         for company in companies:
             try:
                 partner = company.partner_id
-                if partner:
-                    partner.sudo().write({
-                        'company_ids': [(6, 0, [company.id])]
-                    })
-                    _logger.info(
-                        "[company.create] Asignado company_ids del partner '%s' a compañía: %s (ID: %s)",
-                        partner.name, company.name, company.id
+                 
+                if not partner:
+                    _logger.warning(
+                        "[company.create] La compañía %s (ID: %s) no tiene partner asociado",
+                        company.name, company.id
                     )
+                    continue
+                
+                partner_vals = {}
+
+                if not partner.company_id:
+                    partner_vals['company_id'] = company.id
+                    _logger.info(
+                        "[company.create] Asignado company_id=%s al partner '%s'",
+                        company.id, partner.name
+                    )
+
+                current_ids = partner.company_ids.ids or []
+                if company.id not in current_ids:
+                    new_ids = current_ids + [company.id]
+                    partner_vals['company_ids'] = [(6, 0, new_ids)]
+                    _logger.info(
+                        "[company.create] Actualizado company_ids del partner '%s': %s",
+                        partner.name, new_ids
+                    )
+
+                if partner_vals:
+                    partner.sudo().write(partner_vals)
+
             except Exception as e:
                 _logger.exception(
-                    "[company.create] Error al asignar company_ids al partner de compañía %s: %s",
-                    company.name, e
+                    "[company.create] Error al actualizar partner de compañía %s (ID: %s): %s",
+                    company.name, company.id, e
                 )
 
         return companies
