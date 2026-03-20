@@ -16,22 +16,43 @@ class ResPartner(models.Model):
 
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
+        # Log para ver el contexto y los argumentos originales
+        _logger.warning(
+            "[_search] Contexto: skip_system_partner_filter=%s, active_model=%s, compute=%s",
+            self.env.context.get('skip_system_partner_filter', False),
+            self.env.context.get('active_model', 'NO'),
+            'compute' in self.env.context
+        )
+        _logger.warning("[_search] Args originales: %s", args[:5] if len(args) > 5 else args)
+        
+        # Evitar el filtro durante cálculos de campos computados o en contexto problemático
         if self.env.context.get('skip_system_partner_filter') or \
-        self.env.context.get('active_model') == 'res.users':
+        self.env.context.get('active_model') == 'res.users' or \
+        'compute' in self.env.context:
+            _logger.warning("[_search] FILTRO DESACTIVADO por contexto especial")
             return super()._search(args, offset, limit, order, count, access_rights_uid)
         
+        # Verificar si ya hay un filtro sobre is_system_partner
         has_system_filter = any(
             isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
             for arg in args
         )
+        _logger.warning("[_search] has_system_filter=%s, show_system_partners=%s", 
+                        has_system_filter, self.env.context.get('show_system_partners', False))
         
+        # Añadir filtro si es necesario
         if not has_system_filter and not self.env.context.get('show_system_partners'):
+            original_len = len(args)
             args = args + [('is_system_partner', '=', False)]
-            _logger.debug(
-                "_search: Añadido filtro automático is_system_partner=False"
-            )
+            _logger.warning("[_search] FILTRO ACTIVADO: Se añadió is_system_partner=False (args pasó de %d a %d)", 
+                            original_len, len(args))
+        else:
+            _logger.warning("[_search] FILTRO NO APLICADO")
         
-        return super()._search(args, offset, limit, order, count, access_rights_uid)
+        result = super()._search(args, offset, limit, order, count, access_rights_uid)
+        _logger.warning("[_search] Resultado: %s registros", len(result) if not count else result)
+        
+        return result
 
     @api.model
     def _get_company_vals(self, values, check_context=True):
