@@ -36,12 +36,6 @@ class ResPartner(models.Model):
                     "Asignado company_ids=%s (%s) por usuario %s",
                     company_sudo.id, company_sudo.name, user.login
                 )
-
-        if 'partner_share' not in values:
-            values['partner_share'] = True
-            _logger.info(
-                "Asignado partner_share=True para que NO sea global"
-            )
         
         return values
     
@@ -49,7 +43,7 @@ class ResPartner(models.Model):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         
-        company_fields = [f for f in ['company_id', 'company_ids', 'partner_share'] if f in fields_list]
+        company_fields = [f for f in ['company_id', 'company_ids'] if f in fields_list]
         if not company_fields:
             return res
             
@@ -63,7 +57,6 @@ class ResPartner(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         processed_vals_list = []
-        asignados = 0
         
         for vals in vals_list:
             try:
