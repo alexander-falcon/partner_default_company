@@ -14,70 +14,35 @@ class ResPartner(models.Model):
         help="Indica si el partner está asociado a una compañía o usuario. Se actualiza automáticamente."
     )
 
-    @api.depends()
-    def _compute_meeting_count(self):
-        """Sobrescribir para evitar SQL con IN() vacío"""
-        ids = [p.id for p in self if p.id]
-        if not ids:
-            for partner in self:
-                partner.meeting_count = 0
-                partner.meeting_ids = False
-            return
-        return super()._compute_meeting_count()
-    
-    @api.depends()
-    def _compute_meeting(self):
-        """Parche para evitar SQL con lista vacía"""
-        ids = [p.id for p in self if p.id]
-        if not ids:
-            for partner in self:
-                partner.meeting_count = 0
-                partner.meeting_ids = False
-            return
-        return super()._compute_meeting()
-
-    # ============================================================
-    # Filtro _search (con logging para depuración)
-    # ============================================================
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
-        # Log para ver el contexto y los argumentos originales
+        # Determinar si estamos en el contexto de facturación
+        is_account_context = (
+            self.env.context.get('active_model') == 'account.move' or
+            self.env.context.get('account_invoice') or
+            self.env.context.get('default_type') in ['out_invoice', 'in_invoice', 'out_refund', 'in_refund'] or
+            self._name == 'account.move' or
+            'account' in self.env.context.get('params', {}).get('model', '')
+        )
+        
+        # Log para depuración
         _logger.warning(
-            "[_search] Contexto: skip_system_partner_filter=%s, active_model=%s, compute=%s",
-            self.env.context.get('skip_system_partner_filter', False),
-            self.env.context.get('active_model', 'NO'),
-            'compute' in self.env.context
+            "[_search] Contexto: active_model=%s, account_context=%s, compute=%s",
+            self.env.context.get('active_model'), is_account_context, 'compute' in self.env.context
         )
-        _logger.warning("[_search] Args originales: %s", args[:5] if len(args) > 5 else args)
         
-        # Evitar el filtro durante cálculos de campos computados o en contexto problemático
-        if self.env.context.get('skip_system_partner_filter') or \
-           self.env.context.get('active_model') == 'res.users' or \
-           'compute' in self.env.context:
-            _logger.warning("[_search] FILTRO DESACTIVADO por contexto especial")
-            return super()._search(args, offset, limit, order, count, access_rights_uid)
+        # Si estamos en facturación, aplicar el filtro
+        if is_account_context:
+            has_system_filter = any(
+                isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
+                for arg in args
+            )
+            
+            if not has_system_filter and not self.env.context.get('show_system_partners'):
+                args = args + [('is_system_partner', '=', False)]
+                _logger.warning("[_search] Filtro aplicado en facturación")
         
-        # Verificar si ya hay un filtro sobre is_system_partner
-        has_system_filter = any(
-            isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
-            for arg in args
-        )
-        _logger.warning("[_search] has_system_filter=%s, show_system_partners=%s", 
-                        has_system_filter, self.env.context.get('show_system_partners', False))
-        
-        # Añadir filtro si es necesario
-        if not has_system_filter and not self.env.context.get('show_system_partners'):
-            original_len = len(args)
-            args = args + [('is_system_partner', '=', False)]
-            _logger.warning("[_search] FILTRO ACTIVADO: Se añadió is_system_partner=False (args pasó de %d a %d)", 
-                            original_len, len(args))
-        else:
-            _logger.warning("[_search] FILTRO NO APLICADO")
-        
-        result = super()._search(args, offset, limit, order, count, access_rights_uid)
-        _logger.warning("[_search] Resultado: %s registros", len(result) if not count else result)
-        
-        return result
+        return super()._search(args, offset, limit, order, count, access_rights_uid)
 
     @api.model
     def _get_company_vals(self, values, check_context=True):
