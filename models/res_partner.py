@@ -15,30 +15,37 @@ class ResPartner(models.Model):
         help="Indica si el partner está asociado a una compañía o usuario"
     )
 
-    @api.depends('company_id', 'user_ids')
+    @api.depends()
     def _compute_is_system_partner(self):
-        if not self:
+        if self.env.context.get('no_recompute') or not self:
+            for partner in self:
+                partner.is_system_partner = False
             return
         
-        for partner in self:
-            if not partner.id:
-                partner.is_system_partner = False
-                continue
+        ids = [p.id for p in self if p.id]
         
-        company_partners = set(self.env['res.company'].search([]).mapped('partner_id').ids)
-        user_partners = set(self.env['res.users'].search([]).mapped('partner_id').ids)
+        if not ids:
+            for partner in self:
+                partner.is_system_partner = False
+            return
         
         self.env.cr.execute("""
-            SELECT DISTINCT res_partner_id 
-            FROM res_company_res_partner_rel
-        """)
-        partners_in_rel = set(row[0] for row in self.env.cr.fetchall())
+            WITH system_partners AS (
+                SELECT partner_id FROM res_company WHERE partner_id IS NOT NULL
+                UNION
+                SELECT partner_id FROM res_users WHERE partner_id IS NOT NULL
+                UNION
+                SELECT DISTINCT res_partner_id FROM res_company_res_partner_rel
+            )
+            SELECT id, id IN (SELECT partner_id FROM system_partners) as is_system
+            FROM res_partner
+            WHERE id IN %s
+        """, (tuple(ids),))
         
-        system_partners = company_partners | user_partners | partners_in_rel
+        results = {row[0]: row[1] for row in self.env.cr.fetchall()}
         
         for partner in self:
-            if partner.id:
-                partner.is_system_partner = partner.id in system_partners
+            partner.is_system_partner = results.get(partner.id, False)
 
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
