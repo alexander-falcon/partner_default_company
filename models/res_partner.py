@@ -17,9 +17,17 @@ class ResPartner(models.Model):
 
     @api.depends('company_id', 'user_ids')
     def _compute_is_system_partner(self):
+        if not self:
+            return
+        
+        for partner in self:
+            if not partner.id:
+                partner.is_system_partner = False
+                continue
+        
         company_partners = set(self.env['res.company'].search([]).mapped('partner_id').ids)
         user_partners = set(self.env['res.users'].search([]).mapped('partner_id').ids)
-
+        
         self.env.cr.execute("""
             SELECT DISTINCT res_partner_id 
             FROM res_company_res_partner_rel
@@ -29,7 +37,8 @@ class ResPartner(models.Model):
         system_partners = company_partners | user_partners | partners_in_rel
         
         for partner in self:
-            partner.is_system_partner = partner.id in system_partners
+            if partner.id:
+                partner.is_system_partner = partner.id in system_partners
 
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
