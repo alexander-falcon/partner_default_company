@@ -8,6 +8,22 @@ _logger = logging.getLogger(__name__)
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
+    is_system_partner = fields.Boolean(
+        string="Es partner del sistema",
+        compute="_compute_is_system_partner",
+        store=True,
+        help="Indica si el partner está asociado a una compañía o usuario"
+    )
+
+    @api.depends()
+    def _compute_is_system_partner(self):
+        company_partners = self.env['res.company'].search([]).mapped('partner_id').ids
+        user_partners = self.env['res.users'].search([]).mapped('partner_id').ids
+        system_partners = set(company_partners + user_partners)
+        
+        for partner in self:
+            partner.is_system_partner = partner.id in system_partners
+
     @api.model
     def _get_company_vals(self, values, check_context=True):
         user = self.env.user
