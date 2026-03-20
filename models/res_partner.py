@@ -14,21 +14,24 @@ class ResPartner(models.Model):
         help="Indica si el partner está asociado a una compañía o usuario. Se actualiza automáticamente."
     )
 
-    # @api.model
-    # def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
-    #     has_system_filter = any(
-    #         isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
-    #         for arg in args
-    #     )
+    @api.model
+    def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
+        if self.env.context.get('skip_system_partner_filter') or \
+        self.env.context.get('active_model') == 'res.users':
+            return super()._search(args, offset, limit, order, count, access_rights_uid)
         
-    #     if not has_system_filter and not self.env.context.get('show_system_partners'):
-    #         args = args + [('is_system_partner', '=', False)]
-    #         _logger.debug(
-    #             "_search: Añadido filtro automático is_system_partner=False. Contexto show_system_partners=%s",
-    #             self.env.context.get('show_system_partners', False)
-    #         )
+        has_system_filter = any(
+            isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
+            for arg in args
+        )
         
-    #     return super()._search(args, offset, limit, order, count, access_rights_uid)
+        if not has_system_filter and not self.env.context.get('show_system_partners'):
+            args = args + [('is_system_partner', '=', False)]
+            _logger.debug(
+                "_search: Añadido filtro automático is_system_partner=False"
+            )
+        
+        return super()._search(args, offset, limit, order, count, access_rights_uid)
 
     @api.model
     def _get_company_vals(self, values, check_context=True):
