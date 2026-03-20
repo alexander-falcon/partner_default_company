@@ -44,20 +44,12 @@ class ResCompany(models.Model):
                 if partner_vals:
                     partner.sudo().write(partner_vals)
 
-                for user in company.user_ids:
-                    if user.partner_id and user.partner_id != partner:
-                        user_company_ids = user.partner_id.company_ids.ids or []
-                        if company.id not in user_company_ids:
-                            user.partner_id.sudo().write({
-                                'company_ids': [(4, company.id)]
-                            })
-                            _logger.info(
-                                "[company.create] Añadida compañía %s al partner del usuario %s",
-                                company.name, user.login
-                            )
-                            
-                partner.with_context(skip_system_partner_compute=False)._compute_is_system_partner()
-
+                if not partner.is_system_partner:
+                    partner.sudo().write({'is_system_partner': True})
+                    _logger.info(
+                        "[company.create] Marcado partner '%s' como partner del sistema",
+                        partner.name
+                    )
 
             except Exception as e:
                 _logger.exception(
