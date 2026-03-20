@@ -17,15 +17,15 @@ class ResPartner(models.Model):
 
     @api.depends('company_id', 'user_ids')
     def _compute_is_system_partner(self):
-        company_partners = self.env['res.company'].search([]).mapped('partner_id').ids
-        user_partners = self.env['res.users'].search([]).mapped('partner_id').ids
+        company_partners = set(self.env['res.company'].search([]).mapped('partner_id').ids)
+        user_partners = set(self.env['res.users'].search([]).mapped('partner_id').ids)
 
         self.env.cr.execute("""
             SELECT DISTINCT res_partner_id 
             FROM res_company_res_partner_rel
         """)
         partners_in_rel = set(row[0] for row in self.env.cr.fetchall())
-
+        
         system_partners = company_partners | user_partners | partners_in_rel
         
         for partner in self:
