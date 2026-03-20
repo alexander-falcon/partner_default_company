@@ -17,35 +17,31 @@ class ResPartner(models.Model):
 
     @api.depends()
     def _compute_is_system_partner(self):
-        if self.env.context.get('no_recompute') or not self:
+        if self.env.context.get('skip_system_partner_compute'):
+            _logger.debug("_compute_is_system_partner: omitido por contexto")
             for partner in self:
                 partner.is_system_partner = False
             return
         
         ids = [p.id for p in self if p.id]
-        
         if not ids:
             for partner in self:
                 partner.is_system_partner = False
             return
         
-        self.env.cr.execute("""
-            WITH system_partners AS (
-                SELECT partner_id FROM res_company WHERE partner_id IS NOT NULL
-                UNION
-                SELECT partner_id FROM res_users WHERE partner_id IS NOT NULL
-                UNION
-                SELECT DISTINCT res_partner_id FROM res_company_res_partner_rel
-            )
-            SELECT id, id IN (SELECT partner_id FROM system_partners) as is_system
-            FROM res_partner
-            WHERE id IN %s
-        """, (tuple(ids),))
+        company_partners = set(self.env['res.company'].search([]).mapped('partner_id').ids)
+        user_partners = set(self.env['res.users'].search([]).mapped('partner_id').ids)
         
-        results = {row[0]: row[1] for row in self.env.cr.fetchall()}
+        self.env.cr.execute("""
+            SELECT DISTINCT res_partner_id 
+            FROM res_company_res_partner_rel
+        """)
+        partners_in_rel = set(row[0] for row in self.env.cr.fetchall())
+        
+        system_partners = company_partners | user_partners | partners_in_rel
         
         for partner in self:
-            partner.is_system_partner = results.get(partner.id, False)
+            partner.is_system_partner = partner.id in system_partners
 
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
@@ -122,12 +118,14 @@ class ResPartner(models.Model):
                 _logger.exception("[create] Error procesando vals: %s", e)
                 processed_vals_list.append(vals)
 
-        partners = super(ResPartner, self.sudo()).create(processed_vals_list)
+        partners = super(ResPartner, self.sudo().with_context(skip_system_partner_compute=True)).create(processed_vals_list)
 
         _logger.info(
             "[create] Creados %d partners para usuario %s",
             len(partners), self.env.user.login
         )
+
+        partners.with_context(skip_system_partner_compute=False)._compute_is_system_partner()
         
         return partners
     

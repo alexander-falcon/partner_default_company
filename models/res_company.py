@@ -55,7 +55,9 @@ class ResCompany(models.Model):
                                 "[company.create] Añadida compañía %s al partner del usuario %s",
                                 company.name, user.login
                             )
-                partner._compute_is_system_partner()
+                            
+                partner.with_context(skip_system_partner_compute=False)._compute_is_system_partner()
+
 
             except Exception as e:
                 _logger.exception(
