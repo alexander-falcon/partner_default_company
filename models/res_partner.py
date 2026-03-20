@@ -15,11 +15,18 @@ class ResPartner(models.Model):
         help="Indica si el partner está asociado a una compañía o usuario"
     )
 
-    @api.depends()
+    @api.depends('company_id', 'user_ids')
     def _compute_is_system_partner(self):
         company_partners = self.env['res.company'].search([]).mapped('partner_id').ids
         user_partners = self.env['res.users'].search([]).mapped('partner_id').ids
-        system_partners = set(company_partners + user_partners)
+
+        self.env.cr.execute("""
+            SELECT DISTINCT res_partner_id 
+            FROM res_company_res_partner_rel
+        """)
+        partners_in_rel = set(row[0] for row in self.env.cr.fetchall())
+
+        system_partners = company_partners | user_partners | partners_in_rel
         
         for partner in self:
             partner.is_system_partner = partner.id in system_partners
