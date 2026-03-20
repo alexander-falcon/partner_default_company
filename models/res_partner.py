@@ -25,6 +25,7 @@ class ResPartner(models.Model):
             return
         return super()._compute_meeting_count()
     
+    @api.depends()
     def _compute_meeting(self):
         """Parche para evitar SQL con lista vacía"""
         ids = [p.id for p in self if p.id]
@@ -35,6 +36,9 @@ class ResPartner(models.Model):
             return
         return super()._compute_meeting()
 
+    # ============================================================
+    # Filtro _search (con logging para depuración)
+    # ============================================================
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
         # Log para ver el contexto y los argumentos originales
@@ -48,8 +52,8 @@ class ResPartner(models.Model):
         
         # Evitar el filtro durante cálculos de campos computados o en contexto problemático
         if self.env.context.get('skip_system_partner_filter') or \
-        self.env.context.get('active_model') == 'res.users' or \
-        'compute' in self.env.context:
+           self.env.context.get('active_model') == 'res.users' or \
+           'compute' in self.env.context:
             _logger.warning("[_search] FILTRO DESACTIVADO por contexto especial")
             return super()._search(args, offset, limit, order, count, access_rights_uid)
         
