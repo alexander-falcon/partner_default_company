@@ -16,33 +16,16 @@ class ResPartner(models.Model):
 
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
-        # Determinar si estamos en el contexto de facturación
-        is_account_context = (
-            self.env.context.get('active_model') == 'account.move' or
-            self.env.context.get('account_invoice') or
-            self.env.context.get('default_type') in ['out_invoice', 'in_invoice', 'out_refund', 'in_refund'] or
-            self._name == 'account.move' or
-            'account' in self.env.context.get('params', {}).get('model', '')
+        has_system_filter = any(
+            isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
+            for arg in args
         )
         
-        # Log para depuración
-        _logger.warning(
-            "[_search] Contexto: active_model=%s, account_context=%s, compute=%s",
-            self.env.context.get('active_model'), is_account_context, 'compute' in self.env.context
-        )
-        
-        # Si estamos en facturación, aplicar el filtro
-        if is_account_context:
-            has_system_filter = any(
-                isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
-                for arg in args
-            )
-            
-            if not has_system_filter and not self.env.context.get('show_system_partners'):
-                args = args + [('is_system_partner', '=', False)]
-                _logger.warning("[_search] Filtro aplicado en facturación")
+        if not has_system_filter and not self.env.context.get('show_system_partners'):
+            args = args + [('is_system_partner', '=', False)]
         
         return super()._search(args, offset, limit, order, count, access_rights_uid)
+
 
     @api.model
     def _get_company_vals(self, values, check_context=True):
