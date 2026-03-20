@@ -14,6 +14,27 @@ class ResPartner(models.Model):
         help="Indica si el partner está asociado a una compañía o usuario. Se actualiza automáticamente."
     )
 
+    @api.depends()
+    def _compute_meeting_count(self):
+        """Sobrescribir para evitar SQL con IN() vacío"""
+        ids = [p.id for p in self if p.id]
+        if not ids:
+            for partner in self:
+                partner.meeting_count = 0
+                partner.meeting_ids = False
+            return
+        return super()._compute_meeting_count()
+    
+    def _compute_meeting(self):
+        """Parche para evitar SQL con lista vacía"""
+        ids = [p.id for p in self if p.id]
+        if not ids:
+            for partner in self:
+                partner.meeting_count = 0
+                partner.meeting_ids = False
+            return
+        return super()._compute_meeting()
+
     @api.model
     def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
         # Log para ver el contexto y los argumentos originales
