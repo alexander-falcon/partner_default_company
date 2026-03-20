@@ -44,6 +44,18 @@ class ResCompany(models.Model):
                 if partner_vals:
                     partner.sudo().write(partner_vals)
 
+                for user in company.user_ids:
+                    if user.partner_id and user.partner_id != partner:
+                        user_company_ids = user.partner_id.company_ids.ids or []
+                        if company.id not in user_company_ids:
+                            user.partner_id.sudo().write({
+                                'company_ids': [(4, company.id)]
+                            })
+                            _logger.info(
+                                "[company.create] Añadida compañía %s al partner del usuario %s",
+                                company.name, user.login
+                            )
+
             except Exception as e:
                 _logger.exception(
                     "[company.create] Error al actualizar partner de compañía %s (ID: %s): %s",
