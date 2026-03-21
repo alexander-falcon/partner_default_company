@@ -12,6 +12,7 @@
     'depends': ['partner_multi_company'],
     'data': [
         'security/ir.model.access.csv',
+        'views/account_actions.xml',
     ],
     'qweb': [],
     'demo': [],
