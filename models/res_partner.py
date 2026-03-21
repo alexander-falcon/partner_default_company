@@ -27,44 +27,6 @@ class ResPartner(models.Model):
     #     return super()._search(args, offset, limit, order, count, access_rights_uid)
 
     @api.model
-    def _search(self, args, offset=0, limit=None, order=None, count=False, access_rights_uid=None):
-        """
-        Filtro automático que oculta partners del sistema (is_system_partner=True)
-        Parchea el operador 'in' con lista vacía para evitar errores SQL.
-        """
-        # Primero, aplicar el parche para convertir 'in' con valores vacíos
-        patched_args = []
-        for arg in args:
-            if isinstance(arg, (list, tuple)) and len(arg) >= 2 and arg[0] == 'is_system_partner' and arg[1] == 'in':
-                values = arg[2] if len(arg) > 2 else []
-                if not values:
-                    # Si la lista está vacía, omitir (no añadir nada)
-                    continue
-                if len(values) == 1:
-                    patched_args.append(('is_system_partner', '=', values[0]))
-                else:
-                    # Crear una cadena de ORs
-                    or_args = []
-                    for val in values:
-                        or_args.append(('is_system_partner', '=', val))
-                    patched_args.append(or_args)
-            else:
-                patched_args.append(arg)
-        
-        # Verificar si ya hay un filtro sobre is_system_partner
-        has_system_filter = any(
-            isinstance(arg, (tuple, list)) and len(arg) >= 2 and arg[0] == 'is_system_partner'
-            for arg in patched_args
-        )
-        
-        # Aplicar el filtro automático solo si no hay filtro explícito
-        if not has_system_filter and not self.env.context.get('show_system_partners'):
-            patched_args = patched_args + [('is_system_partner', '=', False)]
-        
-        return super()._search(patched_args, offset, limit, order, count, access_rights_uid)
-
-
-    @api.model
     def _get_company_vals(self, values, check_context=True):
         user = self.env.user
         company = (
