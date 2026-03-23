@@ -34,15 +34,15 @@ class ResCompany(models.Model):
                         partner.name, new_ids
                     )
 
-                if partner_vals:
-                    partner.sudo().write(partner_vals)
-
                 if not partner.is_system_partner:
-                    partner.sudo().write({'is_system_partner': True})
+                    partner_vals['is_system_partner'] = True
                     _logger.info(
                         "[company.create] Marcado partner '%s' como partner del sistema",
                         partner.name
                     )
+
+                if partner_vals:
+                    partner.sudo().write(partner_vals)
 
             except Exception as e:
                 _logger.exception(
