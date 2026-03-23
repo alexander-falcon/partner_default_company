@@ -25,13 +25,6 @@ class ResCompany(models.Model):
                 
                 partner_vals = {}
 
-                if not partner.company_id:
-                    partner_vals['company_id'] = company.id
-                    _logger.info(
-                        "[company.create] Asignado company_id=%s al partner '%s'",
-                        company.id, partner.name
-                    )
-
                 current_ids = partner.company_ids.ids or []
                 if company.id not in current_ids:
                     new_ids = current_ids + [company.id]
