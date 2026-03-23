@@ -36,6 +36,7 @@ class ResCompany(models.Model):
 
                 if partner_vals:
                     partner.sudo().write(partner_vals)
+                    partner._compute_company_id()
 
                 if not partner.is_system_partner:
                     partner.sudo().write({'is_system_partner': True})
